@@ -1,0 +1,46 @@
+<script lang="ts">
+  import { metadata } from "$lib/metadata";
+  import { resolve } from "$app/paths";
+  import { onNavigate } from "$app/navigation";
+  import { authModel } from "$lib/pocketbase";
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
+
+
+  const { data, children } = $props();
+  const config = $derived(data.config ?? {});
+  let menuOpen = $state(false);
+
+  $effect(() => {
+    if (page.error) {
+      $metadata.title = page.error.message;
+    }
+  });
+
+  $effect(() => {
+    page.url.pathname;
+    menuOpen = false;
+  });
+
+  onNavigate((navigation) => {
+    // @ts-ignore -- View Transitions API
+    if (!document.startViewTransition) return;
+    return new Promise((resolve) => {
+      // @ts-ignore
+      document.startViewTransition(() => {
+        resolve();
+      });
+    });
+  });
+
+const container_id_ip = page.params.id_ip;
+
+let ip_address;
+
+function launchContainer() {
+    ip_address = "192.168.70." + container_id_ip
+  window.open(`https://vdi-access.wave.glitchedblox.net/api/connect?hostname=${ip_address}&protocol=vnc&port=5901`, '_blank', `width=${window.outerWidth},height=${window.outerHeight},scrollbars=no`);
+}
+</script>
+
+<button onclick={launchContainer}>Launch your container</button>

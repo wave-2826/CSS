@@ -6,6 +6,16 @@
   import { metadata } from "$lib/metadata";
   import { resolve } from "$app/paths";
   import { onNavigate } from "$app/navigation";
+  import { authModel, client } from "$lib/pocketbase";
+  import { goto } from '$app/navigation';
+
+  
+  if (!$authModel && $page.url.pathname !== "/") {
+    goto("/");
+  } else if ($authModel && $page.url.pathname === "/") {
+    const id_ip = client.authStore.record?.expand?.container.id_ip;
+    goto("/" + id_ip);
+  }
 
   const { data, children } = $props();
   const config = $derived(data.config ?? {});
@@ -32,6 +42,7 @@
       });
     });
   });
+
 </script>
 
 <svelte:head>
@@ -43,47 +54,18 @@
     <a href={resolve("/")} class="logo">
       <img src={resolve("/favicon.ico")} alt="" width="24" height="24" />
     </a>
-    <Nav />
-    <LoginBadge signupAllowed={config.signupAllowed} />
+    <p>{$metadata.headline ?? $metadata.title}</p>
+    {#if $authModel}
+      <figure data-variant="avatar" aria-label="Oat">
+        <abbr title={$authModel.name}>{$authModel.name.split(' ').map(n => n[0]).join('')}</abbr>
+      </figure>
+    {/if}
   </div>
 </nav>
 
 <main class="container">
-  <h1>{$metadata.headline ?? $metadata.title}</h1>
   {@render children()}
 </main>
-
-<footer class="container">
-  <p class="text-light">
-    Copyright &copy; {config.site?.year}
-    {config.site?.copyright}
-  </p>
-</footer>
-
-<button
-  class="mobile-menu-toggle"
-  aria-label={menuOpen ? "Close menu" : "Open menu"}
-  aria-expanded={menuOpen}
-  onclick={() => (menuOpen = !menuOpen)}
->
-  <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
-    {#if menuOpen}
-      <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-    {:else}
-      <path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
-    {/if}
-  </svg>
-</button>
-
-{#if menuOpen}
-  <div class="mobile-overlay" onclick={() => (menuOpen = false)} role="presentation"></div>
-  <div class="mobile-menu">
-    <Nav />
-    <div style:padding="var(--space-3)">
-      <LoginBadge signupAllowed={config.signupAllowed} />
-    </div>
-  </div>
-{/if}
 
 <style>
   main {
