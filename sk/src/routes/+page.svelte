@@ -17,7 +17,7 @@
             authMethodsError = error instanceof Error ? error.message : "Unable to load sign-in methods.";
         }
         if ($authModel?.expand?.container?.id_ip) {
-            goto("/" + $authModel.expand?.container?.id_ip);
+            goto("/vd/" + $authModel.expand?.container?.id_ip);
         }
     });
 </script>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import "../app.scss";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import LoginBadge from "$lib/components/LoginBadge.svelte";
   import Nav from "$lib/components/Nav.svelte";
   import { metadata } from "$lib/metadata";
@@ -10,11 +10,11 @@
   import { goto } from '$app/navigation';
 
   
-  if (!$authModel && $page.url.pathname !== "/") {
+  if (!$authModel && page.url.pathname !== "/") {
     goto("/");
-  } else if ($authModel && $page.url.pathname === "/") {
-    const id_ip = client.authStore.record?.expand?.container.id_ip;
-    goto("/" + id_ip);
+  } 
+  if ($authModel && page.url.pathname === "/" && $authModel?.expand?.container?.id_ip) {
+    goto("/vd/" + $authModel.expand?.container?.id_ip);
   }
 
   const { data, children } = $props();
@@ -22,13 +22,13 @@
   let menuOpen = $state(false);
 
   $effect(() => {
-    if ($page.error) {
-      $metadata.title = $page.error.message;
+    if (page.error) {
+      $metadata.title = page.error.message;
     }
   });
 
   $effect(() => {
-    $page.url.pathname;
+    page.url.pathname;
     menuOpen = false;
   });
 

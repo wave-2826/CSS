@@ -254,13 +254,14 @@ export async function watch<T extends RecordModel>(
 
 export async function providerLogin(
   provider: AuthProviderInfo,
-  authCollection: RecordService
+  authCollection: RecordService,
 ) {
   const authResponse = await authCollection.authWithOAuth2({
     provider: provider.name,
     createData: {
       // emailVisibility: true,
     },
+    expand: "container",
   });
   // update user "record" if "meta" has info it doesn't have
   const { meta, record } = authResponse;
