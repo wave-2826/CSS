@@ -6,7 +6,7 @@
   import { metadata } from "$lib/metadata";
   import { resolve } from "$app/paths";
   import { onNavigate } from "$app/navigation";
-  import { authModel, client } from "$lib/pocketbase";
+  import { authModel, logout } from "$lib/pocketbase";
   import { goto } from '$app/navigation';
 
   
@@ -43,10 +43,15 @@
     });
   });
 
+  function logoutToRoot() {
+    logout();
+    goto("/");
+  }
+
 </script>
 
 <svelte:head>
-  <title>{$metadata.title} | {config.site?.name}</title>
+  <title>{$metadata.title} | CSS</title>
 </svelte:head>
 
 <nav data-topnav>
@@ -56,9 +61,16 @@
     </a>
     <p>{$metadata.headline ?? $metadata.title}</p>
     {#if $authModel}
+    <ot-dropdown>
+    <button popovertarget="avatar-dropdown" class="ghost">
       <figure data-variant="avatar" aria-label="Oat">
         <abbr title={$authModel.name}>{$authModel.name.split(' ').map(n => n[0]).join('')}</abbr>
       </figure>
+    </button>
+      <menu popover id="avatar-dropdown">
+        <li><button onclick={logoutToRoot} role="menuitem" class="ghost">Logout</button></li>
+      </menu>
+    </ot-dropdown>
     {/if}
   </div>
 </nav>

@@ -3,6 +3,7 @@
     import { onMount } from "svelte";
     import { client, providerLogin, authModel } from "$lib/pocketbase";
     import { goto } from '$app/navigation';
+    import { metadata } from "$lib/metadata";
 
     const authCollection = "users";
     const collection = client.collection(authCollection);
@@ -19,6 +20,18 @@
         if ($authModel?.expand?.container?.id_ip) {
             goto("/vd/" + $authModel.expand?.container?.id_ip);
         }
+    });
+
+    client.authStore.onChange(() => {
+        if ($authModel?.expand?.container?.id_ip) {
+            goto("/vd/" + $authModel.expand?.container?.id_ip);
+        }
+    });
+
+    metadata.set({
+        title: "Login",
+        headline: "Login | CSS",
+        description: "A login page."
     });
 </script>
 
