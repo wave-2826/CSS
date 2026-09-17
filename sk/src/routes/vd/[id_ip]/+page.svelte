@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Chip, Microchip, Disc, Stop, Play, ArrowOutUpRightCircle, RotateCw} from "@boxicons/svelte";
   import { metadata } from "$lib/metadata";
   import { resolve } from "$app/paths";
   import { onNavigate } from "$app/navigation";
@@ -232,8 +233,13 @@ async function getContainerStatus() {
   }
 }
 
-setInterval(getContainerStatus, 5000);
+const statusInterval = setInterval(getContainerStatus, 5000);
 getContainerStatus();
+
+client.authStore.onChange(() => {
+  clearInterval(statusInterval);
+});
+
 </script>
 
 <section class="container-header">
@@ -241,23 +247,31 @@ getContainerStatus();
     <h1>Container {container_id_ip}</h1>
   </div>
   <span class:running={containerStatus?.status === "running"} class="status-badge">
-    {containerStatus?.status ?? "Loading..."}
+    {#if containerStatus?.status === "stopped"}
+      <Stop />
+      Stopped
+    {:else if containerStatus?.status === "running"}
+      <Play />
+      Running
+    {:else}
+      {containerStatus?.status ?? "Loading..."}
+    {/if}
   </span>
 </section>
 
 <section class="metrics" aria-label="Container resource usage">
   <div class="metric">
-    <div class="metric-label"><span>CPU</span><strong>{percentage(containerStatus?.cpu, containerStatus?.cpus).toFixed(1)}%</strong></div>
+    <div class="metric-label"><span><Chip />CPU</span><strong>{percentage(containerStatus?.cpu, containerStatus?.cpus).toFixed(1)}%</strong></div>
     <progress value={percentage(containerStatus?.cpu, containerStatus?.cpus)} max="100"></progress>
     <small>{containerStatus?.cpu?.toFixed(2) ?? "-"} / {containerStatus?.cpus ?? "-"} CPUs</small>
   </div>
   <div class="metric">
-    <div class="metric-label"><span>RAM</span><strong>{percentage(containerStatus?.mem, containerStatus?.maxmem).toFixed(1)}%</strong></div>
+    <div class="metric-label"><span><Microchip />RAM</span><strong>{percentage(containerStatus?.mem, containerStatus?.maxmem).toFixed(1)}%</strong></div>
     <progress value={percentage(containerStatus?.mem, containerStatus?.maxmem)} max="100"></progress>
     <small>{formatBytes(containerStatus?.mem)} / {formatBytes(containerStatus?.maxmem)}</small>
   </div>
   <div class="metric">
-    <div class="metric-label"><span>Disk</span><strong>{percentage(containerStatus?.disk, containerStatus?.maxdisk).toFixed(1)}%</strong></div>
+    <div class="metric-label"><span><Disc />Disk</span><strong>{percentage(containerStatus?.disk, containerStatus?.maxdisk).toFixed(1)}%</strong></div>
     <progress value={percentage(containerStatus?.disk, containerStatus?.maxdisk)} max="100"></progress>
     <small>{formatBytes(containerStatus?.disk)} / {formatBytes(containerStatus?.maxdisk)}</small>
   </div>
@@ -265,10 +279,10 @@ getContainerStatus();
 
 <p class="uptime">Uptime <strong>{formatUptime(containerStatus?.uptime)}</strong></p>
 
-<button onclick={launchContainer} disabled={!containerStatus || containerStatus.status !== "running"}>Launch your container</button>
-<button onclick={rebootContainer} disabled={!containerStatus || containerStatus.status !== "running"}>Reboot your container</button>
-<button onclick={stopContainer} disabled={!containerStatus || containerStatus.status !== "running"}>Stop your container</button>
-<button onclick={startContainer} disabled={!containerStatus || containerStatus.status !== "stopped"}>Start your container</button>
+<button onclick={launchContainer} disabled={!containerStatus || containerStatus.status !== "running"}><ArrowOutUpRightCircle />Launch your container</button>
+<button onclick={rebootContainer} disabled={!containerStatus || containerStatus.status !== "running"}><RotateCw /> Reboot your container</button>
+<button onclick={stopContainer} disabled={!containerStatus || containerStatus.status !== "running"}><Stop /> Stop your container</button>
+<button onclick={startContainer} disabled={!containerStatus || containerStatus.status !== "stopped"}><Play />Start your container</button>
 
 <style>
   .container-header {
@@ -290,10 +304,20 @@ getContainerStatus();
   }
 
   .status-badge {
+    align-items: center;
     background: var(--accent);
     border-radius: 999px;
+    display: inline-flex;
+    gap: 0.35rem;
     padding: 0.4rem 0.75rem;
     text-transform: capitalize;
+    background: color-mix(in srgb, #ff0000 18%, transparent);
+    color: #ff0000;
+  }
+
+  .status-badge :global(svg) {
+    height: 1em;
+    width: 1em;
   }
 
   .status-badge.running {
@@ -318,6 +342,18 @@ getContainerStatus();
     display: flex;
     justify-content: space-between;
     margin-bottom: 0.75rem;
+  }
+
+  .metric-label > span {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.35rem;
+  }
+
+  .metric-label :global(svg) {
+    display: block;
+    height: 1em;
+    width: 1em;
   }
 
   progress {

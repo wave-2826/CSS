@@ -184,8 +184,84 @@ routerAdd("POST", "/api/vd/stop", (e) => {
     }, $apis.requireAuth());
 
 routerAdd("POST", "/api/vd/create", (e) => {
-    const id_ip = $app.countRecords("containers") + 1;
-    return 501, { error: "Not Implemented" };
+    try {
+        const config = JSON.parse(toString($os.readFile("pb_data/config.json")));
+        const authId = e.auth && e.auth.id;
+        if (!authId) {
+            return e.json(401, { error: "Unauthorized" });
+        }
+
+        const allContainers = $app.findAllRecords("containers");
+        /** @type {Record<string, boolean>} */
+        const usedIds = {};
+        for (let i = 0; i < allContainers.length; i++) {
+            const container = allContainers[i];
+            if (!container) continue;
+            const id_ip = parseInt(container.getString("id_ip"));
+            if (id_ip >= 1 && id_ip <= 200) usedIds[String(id_ip)] = true;
+        }
+
+        let newIdIp = null;
+        for (let candidate = 1; candidate <= 200; candidate++) {
+            if (!usedIds[String(candidate)]) {
+                newIdIp = candidate;
+                break;
+            }
+        }
+
+        if (newIdIp === null) {
+            return e.json(409, { error: "No container IDs are available" });
+        }
+
+        let newContainer = new Record($app.findCollectionByNameOrId("containers"));
+        newContainer.set("id_ip", String(newIdIp));
+        $app.save(newContainer);
+
+        const user = $app.findRecordById("users", authId);
+        user.set("container", newContainer.id);
+        $app.save(user);
+
+        const pveUrl = config.pveUrl;
+        const pveNode = config.pveNode;
+        const pveToken = config.pveToken;
+        const templateId = config.templateId;
+
+        if (!pveUrl || !pveNode || !pveToken || !templateId) {
+            return e.json(500, { error: "Server configuration error" });
+        }
+
+        $http.send({
+            url: `${pveUrl}/api2/json/nodes/${pveNode}/lxc/${templateId}/clone`,
+            method: "POST",
+            headers: {
+                "Authorization": `PVEAPIToken=${pveToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                "newid": String(config.rangeStart + newIdIp),
+                "hostname": `vdi-${newIdIp}`,
+                "full": false
+            })
+        });
+
+        sleep(1000)
+
+        $http.send({
+            url: `${pveUrl}/api2/json/nodes/${pveNode}/lxc/${config.rangeStart + newIdIp}/config`,
+            method: "PUT",
+            headers: {
+                "Authorization": `PVEAPIToken=${pveToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                "net0": `name=eth0,bridge=vmbr0,ip=${config.ipBase}${newIdIp}/${config.CIDR},gw=${config.gateway}`
+            })
+        });
+
+        return e.json(200, { message: "Container created successfully", id_ip: newIdIp });
+    } catch (error) {
+        return e.json(500, { error: String(error) });
+    }
 }, $apis.requireAuth());
 
 routerAdd("POST", "/api/vd/ip", (e) => {

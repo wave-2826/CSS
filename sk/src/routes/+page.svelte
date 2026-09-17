@@ -25,6 +25,8 @@
     client.authStore.onChange(() => {
         if ($authModel?.expand?.container?.id_ip) {
             goto("/vd/" + $authModel.expand?.container?.id_ip);
+        } else {
+            createContainerForUser();
         }
     });
 
@@ -33,6 +35,29 @@
         headline: "Login | CSS",
         description: "A login page."
     });
+
+    async function createContainerForUser() {
+        if (!$authModel) return;
+        try {
+            const response = await client.send("/api/vd/create", {
+                method: "POST",
+                body: JSON.stringify({ userId: $authModel.id }),
+                headers: { "Content-Type": "application/json" }
+            });
+            const data = await response;
+            console.log(response);
+            if (data.id_ip) {
+                console.log("Container created with ID:", data.id_ip);
+                await client.collection('users').authRefresh({ expand: "container" });
+                const containerId = client.authStore.record?.expand?.container?.id_ip ?? data.id_ip;
+                goto("/vd/" + containerId);
+            } else {
+                console.error("Failed to create container:", data);
+            }
+        } catch (error) {
+            console.error("Error creating container:", error);
+        }
+    }
 </script>
 
 <main class="container" style="display: absolute; inset: 0; place-items: center; display: grid;">

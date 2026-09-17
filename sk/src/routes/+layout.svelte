@@ -72,6 +72,11 @@
       </menu>
     </ot-dropdown>
     {/if}
+    {#if !$authModel}
+      <figure data-variant="avatar" aria-label="Oat">
+        
+      </figure>
+    {/if}
   </div>
 </nav>
 

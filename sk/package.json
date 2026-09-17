@@ -36,6 +36,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@boxicons/svelte": "^1.0.1",
     "@simplewebauthn/browser": "^13.3.0",
     "pocketbase": "^0.28.0",
     "zod": "^3.25.76"
