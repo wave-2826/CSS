@@ -46,7 +46,24 @@ if ($authModel?.expand?.container?.id_ip != container_id_ip) {
 }
 
 
-let ip_address;
+let ip_address = $state<string | null>(null);
+let rustguac_url = $state<string | null>(null);
+let containerStatus = $state<ContainerStatus | null>(null);
+
+type ContainerStatus = {
+  cpu?: number;
+  cpus?: number;
+  disk?: number;
+  maxdisk?: number;
+  mem?: number;
+  maxmem?: number;
+  status?: "stopped" | "running" | string;
+  uptime?: number;
+};
+
+type ProxmoxResponse<T> = {
+  data?: T;
+};
 
 function readableError(error: unknown): string {
   const value = error as {
@@ -83,9 +100,53 @@ function readableError(error: unknown): string {
   }
 }
 
-function launchContainer() {
-    ip_address = "192.168.70." + container_id_ip
-  window.open(`https://vdi-access.wave.glitchedblox.net/api/connect?hostname=${ip_address}&protocol=vnc&port=5901`, '_blank', `width=${window.outerWidth},height=${window.outerHeight},scrollbars=no`);
+function decodeResponse<T>(encoded: string): T {
+  const decoded = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(decoded)) as T;
+}
+
+function percentage(value?: number, maximum?: number): number {
+  if (!value || !maximum) return 0;
+  return Math.min(100, Math.max(0, (value / maximum) * 100));
+}
+
+function formatBytes(value?: number): string {
+  if (!value) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const unitIndex = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  return `${(value / 1024 ** unitIndex).toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatUptime(seconds?: number): string {
+  if (!seconds) return "0 minutes";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes || !parts.length) parts.push(`${minutes}m`);
+  return parts.join(" ");
+}
+
+async function launchContainer() {
+    ip_address = await getContainerIp();
+    rustguac_url = await getRustGuacUrl();
+  window.open(`${rustguac_url}/api/connect?hostname=${ip_address}&protocol=vnc&port=5901`, '_blank', `width=${window.outerWidth},height=${window.outerHeight},scrollbars=no`);
+}
+
+async function getRustGuacUrl() {
+  try {
+    const response = await client.send<{ data: string }>(`/api/getRustguac`, {
+      method: "POST",
+    });
+    return response.data;
+  } catch (error) {
+    const message = readableError(error);
+    ot.toast(message, 'Error!', { variant: 'error' });
+    console.error("Failed to get RustGuac URL", message);
+    return null;
+  }
 }
 
 async function rebootContainer() {
@@ -94,6 +155,7 @@ async function rebootContainer() {
       method: "POST",
       body: { id_ip: container_id_ip }
     });
+    ot.toast("Container rebooted successfully", 'Success!', { variant: 'success' });
     console.log(response);
   } catch (error) {
     const message = readableError(error);
@@ -109,6 +171,7 @@ async function stopContainer() {
       body: { id_ip: container_id_ip }
     });
     console.log(response);
+    ot.toast("Container stopped successfully", 'Success!', { variant: 'success' });
   } catch (error) {
     const message = readableError(error);
     ot.toast(message, 'Error!', { variant: 'error' });
@@ -123,15 +186,166 @@ async function startContainer() {
       body: { id_ip: container_id_ip }
     });
     console.log(response);
+    ot.toast("Container started successfully", 'Success!', { variant: 'success' });
   } catch (error) {
     const message = readableError(error);
     ot.toast(message, 'Error!', { variant: 'error' });
     console.error("Failed to start container", message);
   }
 }
+
+async function getContainerIp() {
+  try {
+    const response = await client.send<{ data: string }>(`/api/vd/ip`, {
+      method: "POST",
+      body: { id_ip: container_id_ip }
+    });
+    const payload = decodeResponse<{
+      data?: Array<{ name?: string; inet?: string }>;
+    }>(response.data);
+    ip_address = payload.data?.find((networkInterface) => networkInterface.name === "eth0")?.inet ?? null;
+    ip_address = ip_address?.split("/")[0] ?? null;
+    if (!ip_address) {
+      throw new Error("Container interface did not include an inet address");
+    }
+    return ip_address;
+  } catch (error) {
+    const message = readableError(error);
+    ot.toast(message, 'Error!', { variant: 'error' });
+    console.error("Failed to get container IP", message);
+    return null;
+  }
+}
+
+async function getContainerStatus() {
+  try {
+    const response = await client.send<{ data: string }>(`/api/vd/status`, {
+      method: "POST",
+      body: { id_ip: container_id_ip }
+    });
+    containerStatus = decodeResponse<ProxmoxResponse<ContainerStatus>>(response.data).data ?? null;
+  } catch (error) {
+    const message = readableError(error);
+    ot.toast(message, 'Error!', { variant: 'error' });
+    console.error("Failed to get container status", message);
+    containerStatus = null;
+  }
+}
+
+setInterval(getContainerStatus, 5000);
+getContainerStatus();
 </script>
 
-<button onclick={launchContainer}>Launch your container</button>
-<button onclick={rebootContainer}>Reboot your container</button>
-<button onclick={stopContainer}>Stop your container</button>
-<button onclick={startContainer}>Start your container</button>
+<section class="container-header">
+  <div>
+    <h1>Container {container_id_ip}</h1>
+  </div>
+  <span class:running={containerStatus?.status === "running"} class="status-badge">
+    {containerStatus?.status ?? "Loading..."}
+  </span>
+</section>
+
+<section class="metrics" aria-label="Container resource usage">
+  <div class="metric">
+    <div class="metric-label"><span>CPU</span><strong>{percentage(containerStatus?.cpu, containerStatus?.cpus).toFixed(1)}%</strong></div>
+    <progress value={percentage(containerStatus?.cpu, containerStatus?.cpus)} max="100"></progress>
+    <small>{containerStatus?.cpu?.toFixed(2) ?? "-"} / {containerStatus?.cpus ?? "-"} CPUs</small>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>RAM</span><strong>{percentage(containerStatus?.mem, containerStatus?.maxmem).toFixed(1)}%</strong></div>
+    <progress value={percentage(containerStatus?.mem, containerStatus?.maxmem)} max="100"></progress>
+    <small>{formatBytes(containerStatus?.mem)} / {formatBytes(containerStatus?.maxmem)}</small>
+  </div>
+  <div class="metric">
+    <div class="metric-label"><span>Disk</span><strong>{percentage(containerStatus?.disk, containerStatus?.maxdisk).toFixed(1)}%</strong></div>
+    <progress value={percentage(containerStatus?.disk, containerStatus?.maxdisk)} max="100"></progress>
+    <small>{formatBytes(containerStatus?.disk)} / {formatBytes(containerStatus?.maxdisk)}</small>
+  </div>
+</section>
+
+<p class="uptime">Uptime <strong>{formatUptime(containerStatus?.uptime)}</strong></p>
+
+<button onclick={launchContainer} disabled={!containerStatus || containerStatus.status !== "running"}>Launch your container</button>
+<button onclick={rebootContainer} disabled={!containerStatus || containerStatus.status !== "running"}>Reboot your container</button>
+<button onclick={stopContainer} disabled={!containerStatus || containerStatus.status !== "running"}>Stop your container</button>
+<button onclick={startContainer} disabled={!containerStatus || containerStatus.status !== "stopped"}>Start your container</button>
+
+<style>
+  .container-header {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-block: 2rem 1.5rem;
+  }
+
+  .eyebrow {
+    color: var(--accent-foreground);
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(1.5rem, 4vw, 2.4rem);
+    margin: 0.25rem 0 0;
+  }
+
+  .status-badge {
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 0.4rem 0.75rem;
+    text-transform: capitalize;
+  }
+
+  .status-badge.running {
+    background: color-mix(in srgb, var(--success) 18%, transparent);
+    color: var(--success);
+  }
+
+  .metrics {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 1rem;
+  }
+
+  .metric {
+    background: var(--accent);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .metric-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  progress {
+    accent-color: var(--primary);
+    display: block;
+    height: 0.65rem;
+    width: 100%;
+  }
+
+  small {
+    color: var(--accent-foreground);
+    display: block;
+    margin-top: 0.6rem;
+  }
+
+  .uptime {
+    margin-block: 1rem 1.5rem;
+  }
+
+  @media (max-width: 700px) {
+    .container-header,
+    .metrics {
+      grid-template-columns: 1fr;
+    }
+
+    .container-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+</style>
