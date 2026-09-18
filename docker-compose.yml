@@ -1,25 +1,33 @@
 services:
   pb:
-    # image: alpine:latest
-    build: .
+    image: node:22-alpine
+    depends_on:
+      sk:
+        condition: service_completed_successfully
     entrypoint: /app/pb/entrypoint.sh
-    command: "/app/pb/pocketbase serve --automigrate=false --dev --http 0.0.0.0:8090 --publicDir ../sk/build"
+    command: "/app/pb/pocketbase serve --http 0.0.0.0:8090 --publicDir ../sk/build"
     user: ${UID}:${GID}
-    expose:
-      - 8090
+    ports:
+      - ${PORT:-8090}:8090
     working_dir: /app/pb
     environment:
       - RELEASE=${RELEASE:-standard} # use "custom" for main.go build, "standard" for downloaded binary
-      - PB_VERSION=0.38.0
+      - PB_VERSION=0.38.2
       - PB_ARCH=linux_amd64
       - HOME=/app/pb
       - AUDITLOG=${AUDITLOG}
-      - DEV=${DEV:-true}
-      - PB_SUPERUSER_EMAIL=${PB_SUPERUSER_EMAIL}
-      - PB_SUPERUSER_PASSWORD=${PB_SUPERUSER_PASSWORD}
-      - PB_USER_EMAIL=${PB_USER_EMAIL}
-      - PB_USER_PASSWORD=${PB_USER_PASSWORD}
     volumes:
-      - ./pb:/app/pb
-      - ./sk:/app/sk
-      - ${HOME}/go/pkg:/go/pkg
+      - ${PWD}/pb:/app/pb
+      - ${PWD}/sk:/app/sk
+  sk:
+    image: node:22-alpine
+    user: ${UID}:${GID}
+    # sveltekit build
+    command: sh -c "npx pnpm install && npm run build"
+    volumes:
+      - ${PWD}/sk:/app/sk
+      - ${PWD}/pb:/app/pb
+    environment:
+      - HOME=/app/sk
+      - CI=true
+    working_dir: /app/sk
