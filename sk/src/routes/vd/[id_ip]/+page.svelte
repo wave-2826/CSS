@@ -8,7 +8,7 @@
   import { page } from '$app/state';
 
 
-  const { data, children } = $props();
+  const { data } = $props();
   const config = $derived(data.config ?? {});
   let menuOpen = $state(false);
 
@@ -133,7 +133,7 @@ function formatUptime(seconds?: number): string {
 async function launchContainer() {
     ip_address = await getContainerIp();
     rustguac_url = await getRustGuacUrl();
-  window.open(`${rustguac_url}/api/connect?hostname=${ip_address}&protocol=vnc&port=5901`, '_blank', `width=${window.outerWidth},height=${window.outerHeight},scrollbars=no`);
+  window.open(`${rustguac_url}/api/connect?hostname=${ip_address}&protocol=vnc&port=5901`, '_blank', `width=${window.screen.width},height=${window.screen.height},scrollbars=no`);
 }
 
 async function getRustGuacUrl() {
@@ -292,12 +292,7 @@ client.authStore.onChange(() => {
     gap: 1rem;
     margin-block: 2rem 1.5rem;
   }
-
-  .eyebrow {
-    color: var(--accent-foreground);
-    margin: 0;
-  }
-
+  
   h1 {
     font-size: clamp(1.5rem, 4vw, 2.4rem);
     margin: 0.25rem 0 0;
