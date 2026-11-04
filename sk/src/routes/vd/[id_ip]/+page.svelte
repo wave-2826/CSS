@@ -230,6 +230,10 @@ async function getContainerStatus() {
     ot.toast(message, 'Error!', { variant: 'error' });
     console.error("Failed to get container status", message);
     containerStatus = null;
+    if (message.includes("Forbidden")) {
+      client.authStore.clear();
+      goto("/");
+    }
   }
 }
 
